@@ -2,13 +2,14 @@ import time
 import os
 import requests
 import threading
+import chromedriver_autoinstaller
 from flask import Flask
 from datetime import datetime, timedelta
 import pytz
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException\
 
 # === Config ===
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
@@ -27,12 +28,12 @@ def send_telegram_message(message):
         print("❌ Telegram error:", e)
 
 def create_driver():
+    chromedriver_autoinstaller.install()  # Automatically downloads correct version
     chrome_options = webdriver.ChromeOptions()
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.binary_location = "/usr/bin/google-chrome"
-    return webdriver.Chrome(service=Service("/usr/bin/chromedriver"), options=chrome_options)
+    return webdriver.Chrome(options=chrome_options)
 
 def check_ticket_status():
     driver = create_driver()
