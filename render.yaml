@@ -3,7 +3,6 @@ services:
     name: sgp-ticketbot
     env: python
     buildCommand: |
-      apt-get update && apt-get install -y wget unzip curl chromium-browser chromium-chromedriver
       pip install -r requirements.txt
     startCommand: python main.py
     envVars:
