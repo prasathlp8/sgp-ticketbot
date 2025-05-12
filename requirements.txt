@@ -1,4 +1,4 @@
-undetected-chromedriver
 flask
 pytz
 requests
+selenium
