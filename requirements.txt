@@ -1,4 +1,5 @@
+selenium
+chromedriver-autoinstaller
 flask
 pytz
 requests
-selenium
