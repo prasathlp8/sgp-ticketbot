@@ -28,12 +28,13 @@ def send_telegram_message(message):
         print("❌ Telegram error:", e)
 
 def create_driver():
-    chromedriver_autoinstaller.install()  # Automatically downloads correct version
-    chrome_options = webdriver.ChromeOptions()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    return webdriver.Chrome(options=chrome_options)
+    chromedriver_autoinstaller.install()  # Automatically downloads correct driver
+    options = webdriver.ChromeOptions()
+    options.add_argument("--headless")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.binary_location = "/usr/bin/google-chrome"
+    return webdriver.Chrome(options=options)
 
 def check_ticket_status():
     driver = create_driver()
