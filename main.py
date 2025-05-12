@@ -91,7 +91,5 @@ if TELEGRAM_TOKEN and CHAT_ID:
     send_telegram_message("🚀 Bot started. Monitoring will run at the start of every hour (SGT).")
 
 if __name__ == "__main__":
+    check_ticket_status()
     app.run(host="0.0.0.0", port=8080)
-
-# Manual test message
-check_ticket_status()
