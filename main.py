@@ -92,3 +92,6 @@ if TELEGRAM_TOKEN and CHAT_ID:
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
+
+# Manual test message
+check_ticket_status()
