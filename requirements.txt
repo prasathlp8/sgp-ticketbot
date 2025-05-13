@@ -1,5 +1,5 @@
-selenium>=4.10.0
-pillow
-flask
-pytz
+Flask
 requests
+selenium
+pillow
+pytz
