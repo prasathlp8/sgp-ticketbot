@@ -2,10 +2,6 @@ services:
   - type: web
     name: sgp-ticketbot
     env: python
+    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: python main.py
-    envVars:
-      - key: TELEGRAM_TOKEN
-        sync: false
-      - key: CHAT_ID
-        sync: false
