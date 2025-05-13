@@ -29,16 +29,6 @@ def send_telegram_message(message):
     except Exception as e:
         print("❌ Telegram error:", e)
 
-def send_telegram_photo(image_bytes, caption):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
-    files = {"photo": ("screenshot.png", image_bytes)}
-    data = {"chat_id": CHAT_ID, "caption": caption}
-    try:
-        res = requests.post(url, files=files, data=data)
-        print("📷 Screenshot sent to Telegram.")
-    except Exception as e:
-        print("❌ Telegram photo error:", e)
-
 def create_driver():
     options = webdriver.ChromeOptions()
     options.add_argument("--headless")
@@ -46,94 +36,96 @@ def create_driver():
     options.add_argument("--disable-dev-shm-usage")
     return webdriver.Chrome(options=options)
 
+def analyze_color(crop_img, label):
+    colors = crop_img.getcolors(10000)
+    if not colors:
+        return f"⚠️ 3. Visual Backup ({label}): No dominant color"
+    sorted_colors = sorted(colors, key=lambda x: x[0], reverse=True)
+    for count, color in sorted_colors[:10]:
+        r, g, b = color[:3]
+        if g > 120 and r < 100:
+            return f"🟢 3. Visual Backup ({label}): GREEN (Available)"
+        if r > 150 and g < 100:
+            return f"🔴 3. Visual Backup ({label}): RED (Sold Out)"
+    return f"⚠️ 3. Visual Backup ({label}): Color unclear"
+
 def check_ticket_status():
     driver = create_driver()
     try:
-        messages = []
+        messages = ["\n📡 Ticket Check Status:"]
 
-        # Zone 4 Walkabout Ticket Check
+        # Zone 4 Walkabout
+        walkabout_section = ["\n🔲 Zone 4 Walkabout"]
         driver.get(WALKABOUT_URL)
         time.sleep(3)
+
+        # Screenshot for cropping
+        screenshot = driver.get_screenshot_as_png()
+        img = Image.open(BytesIO(screenshot))
+
+        # 1. Button check
         try:
             walk_btn = driver.find_element(By.ID, "btn-buy-2025-zone-4-walkabout-sunday")
             btn_text = walk_btn.text.strip().lower()
             btn_class = walk_btn.get_attribute("class")
-
             if "buy" in btn_text or "stat-active" in btn_class:
-                messages.append("✅ Zone 4 Walkabout Sunday: AVAILABLE")
+                walkabout_section.append("✅ 1. Button Check: AVAILABLE")
             else:
-                messages.append("❌ Zone 4 Walkabout Sunday: SOLD OUT")
+                walkabout_section.append("❌ 1. Button Check: SOLD OUT")
         except NoSuchElementException:
-            messages.append("⚠️ Zone 4 Walkabout button not found")
+            walkabout_section.append("⚠️ 1. Button Check: Not Found")
 
-        # Tooltip backup check for Zone 4
+        # 2. Tooltip check
         try:
-            soldout_icon = driver.find_element(By.CLASS_NAME, "currently-sold-out-info")
-            if "active" in soldout_icon.get_attribute("class"):
-                messages.append("🔴 Tooltip Check: Zone 4 Walkabout shows Sold Out icon.")
+            tooltip = driver.find_element(By.CLASS_NAME, "currently-sold-out-info")
+            tooltip_text = tooltip.get_attribute("data-tippy-content") or ""
+            if "no tickets available" in tooltip_text.lower():
+                walkabout_section.append("🔴 2. Tooltip Check: Sold Out (via tooltip text)")
             else:
-                messages.append("🟢 Tooltip Check: Zone 4 Walkabout has no Sold Out icon.")
+                walkabout_section.append("🟢 2. Tooltip Check: No sold-out text")
         except NoSuchElementException:
-            messages.append("🟢 Tooltip Check: No sold-out span found for Zone 4 Walkabout.")
+            walkabout_section.append("🟢 2. Tooltip Check: No sold-out span found")
 
-        # Zone 4 Visual Backup
-        screenshot = driver.get_screenshot_as_png()
-        img = Image.open(BytesIO(screenshot))
-        zone4_crop = img.crop((220, 1300, 400, 1350))
-        colors = zone4_crop.getcolors(10000)
-        if colors:
-            most_common_color = sorted(colors, key=lambda x: x[0], reverse=True)[0][1]
-            r, g, b = most_common_color[:3]
-            if g > 150 and r < 100:
-                messages.append("🟢 (Visual Backup) Zone 4 Walkabout: GREEN (Available)")
-            elif r > 150 and g < 100:
-                messages.append("🔴 (Visual Backup) Zone 4 Walkabout: RED (Sold Out)")
-            else:
-                messages.append("⚠️ (Visual Backup) Zone 4 Walkabout color unclear")
+        zone4_crop = img.crop((1120, 885, 1210, 920))  # Adjusted box
+        walkabout_section.append(analyze_color(zone4_crop, "Zone 4 Walkabout"))
 
-        # Stamford Grandstand Ticket Check
+        # Stamford Grandstand
+        stamford_section = ["\n🔲 Stamford Grandstand"]
         driver.get(GRANDSTAND_URL)
         time.sleep(3)
+
+        # Screenshot for Stamford
+        screenshot = driver.get_screenshot_as_png()
+        img = Image.open(BytesIO(screenshot))
+
+        # 1. Button check
         try:
             stam_btn = driver.find_element(By.ID, "btn-buy-2025-stamford-grandstand-sunday")
             btn_text = stam_btn.text.strip().lower()
             btn_class = stam_btn.get_attribute("class")
-
             if "buy" in btn_text or "stat-active" in btn_class:
-                messages.append("✅ Stamford Grandstand Sunday: AVAILABLE")
+                stamford_section.append("✅ 1. Button Check: AVAILABLE")
             else:
-                messages.append("❌ Stamford Grandstand Sunday: SOLD OUT")
+                stamford_section.append("❌ 1. Button Check: SOLD OUT")
         except NoSuchElementException:
-            messages.append("⚠️ Stamford Grandstand button not found")
+            stamford_section.append("⚠️ 1. Button Check: Not Found")
 
-        # Tooltip backup check for Stamford
+        # 2. Tooltip check
         try:
-            soldout_icon = driver.find_element(By.CLASS_NAME, "currently-sold-out-info")
-            if "active" in soldout_icon.get_attribute("class"):
-                messages.append("🔴 Tooltip Check: Stamford Grandstand shows Sold Out icon.")
+            tooltip = driver.find_element(By.CLASS_NAME, "currently-sold-out-info")
+            tooltip_text = tooltip.get_attribute("data-tippy-content") or ""
+            if "no tickets available" in tooltip_text.lower():
+                stamford_section.append("🔴 2. Tooltip Check: Sold Out (via tooltip text)")
             else:
-                messages.append("🟢 Tooltip Check: Stamford Grandstand has no Sold Out icon.")
+                stamford_section.append("🟢 2. Tooltip Check: No sold-out text")
         except NoSuchElementException:
-            messages.append("🟢 Tooltip Check: No sold-out span found for Stamford Grandstand.")
+            stamford_section.append("🟢 2. Tooltip Check: No sold-out span found")
 
-        # Stamford Visual Backup
-        screenshot = driver.get_screenshot_as_png()
-        img = Image.open(BytesIO(screenshot))
-        stam_crop = img.crop((220, 960, 400, 1010))
-        colors = stam_crop.getcolors(10000)
-        if colors:
-            most_common_color = sorted(colors, key=lambda x: x[0], reverse=True)[0][1]
-            r, g, b = most_common_color[:3]
-            if g > 150 and r < 100:
-                messages.append("🟢 (Visual Backup) Stamford Grandstand: GREEN (Available)")
-            elif r > 150 and g < 100:
-                messages.append("🔴 (Visual Backup) Stamford Grandstand: RED (Sold Out)")
-            else:
-                messages.append("⚠️ (Visual Backup) Stamford Grandstand color unclear")
+        stam_crop = img.crop((1120, 1370, 1210, 1405))  # Adjusted box
+        stamford_section.append(analyze_color(stam_crop, "Stamford Grandstand"))
 
-        status_msg = "\n".join(messages)
-        send_telegram_message(f"📡 Ticket Check Status:\n{status_msg}")
-        send_telegram_photo(screenshot, "🖼️ Screenshot at time of check")
+        status_msg = "\n".join(messages + walkabout_section + stamford_section)
+        send_telegram_message(status_msg)
 
     finally:
         driver.quit()
@@ -159,11 +151,8 @@ def home():
 
 @app.route("/run-now")
 def run_now():
-    try:
-        check_ticket_status()
-        return "✅ Manual ticket check completed and sent to Telegram."
-    except Exception as e:
-        return f"❌ Error: {e}"
+    threading.Thread(target=check_ticket_status).start()
+    return "✅ Manual ticket check triggered."
 
 threading.Thread(target=run_checker, daemon=True).start()
 
