@@ -1,5 +1,4 @@
-selenium
-chromedriver-autoinstaller
+selenium>=4.10.0
 flask
 pytz
 requests
