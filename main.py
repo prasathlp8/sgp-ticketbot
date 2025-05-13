@@ -7,9 +7,9 @@ from datetime import datetime, timedelta
 import pytz
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.common.exceptions import NoSuchElementException
-from PIL import Image
-from io import BytesIO
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 # === Config ===
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
@@ -34,99 +34,51 @@ def create_driver():
     options.add_argument("--headless")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136 Safari/537.36")
     return webdriver.Chrome(options=options)
 
-def analyze_color(crop_img, label):
-    colors = crop_img.getcolors(10000)
-    if not colors:
-        return f"⚠️ 3. Visual Backup ({label}): No dominant color"
-    sorted_colors = sorted(colors, key=lambda x: x[0], reverse=True)
-    for count, color in sorted_colors[:10]:
-        r, g, b = color[:3]
-        if g > 120 and r < 100:
-            return f"🟢 3. Visual Backup ({label}): GREEN (Available)"
-        if r > 150 and g < 100:
-            return f"🔴 3. Visual Backup ({label}): RED (Sold Out)"
-    return f"⚠️ 3. Visual Backup ({label}): Color unclear"
+def check_ticket(url, ticket_name, driver):
+    section = [f"\n🎫 {ticket_name}"]
+    try:
+        driver.get(url)
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, '.panel-title'))
+        )
+        cards = driver.find_elements(By.CSS_SELECTOR, '.row.no-gutters.align-items-center.m-0')
+        found = False
+        for card in cards:
+            try:
+                label = card.find_element(By.TAG_NAME, 'p').text.strip().lower()
+                if ticket_name.lower() in label:
+                    btn = card.find_element(By.CSS_SELECTOR, 'a.btn-buy')
+                    btn_text = btn.text.strip()
+                    if "buy" in btn_text.lower():
+                        section.append(f"✅ Available – {btn_text}")
+                    elif "sold" in btn_text.lower():
+                        section.append(f"❌ Sold Out – {btn_text}")
+                    else:
+                        section.append(f"⚠️ Unknown – {btn_text}")
+                    found = True
+                    break
+            except Exception:
+                continue
+
+        if not found:
+            section.append("❌ Ticket not found on page")
+
+    except Exception as e:
+        section.append(f"❌ Error loading page: {str(e)}")
+
+    return section
 
 def check_ticket_status():
     driver = create_driver()
     try:
-        messages = ["\n📡 Ticket Check Status:"]
-
-        # Zone 4 Walkabout
-        walkabout_section = ["\n🔲 Zone 4 Walkabout"]
-        driver.get(WALKABOUT_URL)
-        time.sleep(3)
-
-        # Screenshot for cropping
-        screenshot = driver.get_screenshot_as_png()
-        img = Image.open(BytesIO(screenshot))
-
-        # 1. Button check
-        try:
-            walk_btn = driver.find_element(By.ID, "btn-buy-2025-zone-4-walkabout-sunday")
-            btn_text = walk_btn.text.strip().lower()
-            btn_class = walk_btn.get_attribute("class")
-            if "buy" in btn_text or "stat-active" in btn_class:
-                walkabout_section.append("✅ 1. Button Check: AVAILABLE")
-            else:
-                walkabout_section.append("❌ 1. Button Check: SOLD OUT")
-        except NoSuchElementException:
-            walkabout_section.append("⚠️ 1. Button Check: Not Found")
-
-        # 2. Tooltip check
-        try:
-            tooltip = driver.find_element(By.CLASS_NAME, "currently-sold-out-info")
-            tooltip_text = tooltip.get_attribute("data-tippy-content") or ""
-            if "no tickets available" in tooltip_text.lower():
-                walkabout_section.append("🔴 2. Tooltip Check: Sold Out (via tooltip text)")
-            else:
-                walkabout_section.append("🟢 2. Tooltip Check: No sold-out text")
-        except NoSuchElementException:
-            walkabout_section.append("🟢 2. Tooltip Check: No sold-out span found")
-
-        zone4_crop = img.crop((1120, 885, 1210, 920))  # Adjusted box
-        walkabout_section.append(analyze_color(zone4_crop, "Zone 4 Walkabout"))
-
-        # Stamford Grandstand
-        stamford_section = ["\n🔲 Stamford Grandstand"]
-        driver.get(GRANDSTAND_URL)
-        time.sleep(3)
-
-        # Screenshot for Stamford
-        screenshot = driver.get_screenshot_as_png()
-        img = Image.open(BytesIO(screenshot))
-
-        # 1. Button check
-        try:
-            stam_btn = driver.find_element(By.ID, "btn-buy-2025-stamford-grandstand-sunday")
-            btn_text = stam_btn.text.strip().lower()
-            btn_class = stam_btn.get_attribute("class")
-            if "buy" in btn_text or "stat-active" in btn_class:
-                stamford_section.append("✅ 1. Button Check: AVAILABLE")
-            else:
-                stamford_section.append("❌ 1. Button Check: SOLD OUT")
-        except NoSuchElementException:
-            stamford_section.append("⚠️ 1. Button Check: Not Found")
-
-        # 2. Tooltip check
-        try:
-            tooltip = driver.find_element(By.CLASS_NAME, "currently-sold-out-info")
-            tooltip_text = tooltip.get_attribute("data-tippy-content") or ""
-            if "no tickets available" in tooltip_text.lower():
-                stamford_section.append("🔴 2. Tooltip Check: Sold Out (via tooltip text)")
-            else:
-                stamford_section.append("🟢 2. Tooltip Check: No sold-out text")
-        except NoSuchElementException:
-            stamford_section.append("🟢 2. Tooltip Check: No sold-out span found")
-
-        stam_crop = img.crop((1120, 1370, 1210, 1405))  # Adjusted box
-        stamford_section.append(analyze_color(stam_crop, "Stamford Grandstand"))
-
-        status_msg = "\n".join(messages + walkabout_section + stamford_section)
-        send_telegram_message(status_msg)
-
+        messages = ["📡 Ticket Check Status:"]
+        messages += check_ticket(WALKABOUT_URL, "Zone 4 Walkabout", driver)
+        messages += check_ticket(GRANDSTAND_URL, "Stamford Grandstand", driver)
+        send_telegram_message("\n".join(messages))
     finally:
         driver.quit()
 
