@@ -11,6 +11,7 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
+import chromedriver_autoinstaller
 
 # === Config ===
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
@@ -31,6 +32,7 @@ def send_telegram_message(message):
         print("❌ Telegram error:", e)
 
 def create_driver():
+    chromedriver_autoinstaller.install()  # Ensure correct chromedriver is available
     options = webdriver.ChromeOptions()
     options.add_argument("--headless")
     options.add_argument("--no-sandbox")
