@@ -10,6 +10,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
 
 # === Config ===
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
@@ -36,39 +37,50 @@ def create_driver():
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--window-size=1920,1080")
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136 Safari/537.36")
-    return webdriver.Chrome(options=options)
+    driver = webdriver.Chrome(options=options)
+    driver.set_page_load_timeout(30)
+    return driver
 
 def check_ticket(url, ticket_name, driver):
     section = [f"\n🎫 {ticket_name}"]
-    try:
-        driver.get(url)
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, '.panel-title'))
-        )
-        cards = driver.find_elements(By.CSS_SELECTOR, '.row.no-gutters.align-items-center.m-0')
-        found = False
-        for card in cards:
-            try:
-                label = card.find_element(By.TAG_NAME, 'p').text.strip().lower()
-                if ticket_name.lower() in label:
-                    btn = card.find_element(By.CSS_SELECTOR, 'a.btn-buy')
-                    btn_text = btn.text.strip()
-                    if "buy" in btn_text.lower():
-                        section.append(f"✅ Available – {btn_text}")
-                    elif "sold" in btn_text.lower():
-                        section.append(f"❌ Sold Out – {btn_text}")
-                    else:
-                        section.append(f"⚠️ Unknown – {btn_text}")
-                    found = True
-                    break
-            except Exception:
+    for attempt in range(2):
+        try:
+            driver.get(url)
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, '.panel-title'))
+            )
+            cards = driver.find_elements(By.CSS_SELECTOR, '.row.no-gutters.align-items-center.m-0')
+            found = False
+            for card in cards:
+                try:
+                    label = card.find_element(By.TAG_NAME, 'p').text.strip().lower()
+                    if ticket_name.lower() in label:
+                        btn = card.find_element(By.CSS_SELECTOR, 'a.btn-buy')
+                        btn_text = btn.text.strip()
+                        if "buy" in btn_text.lower():
+                            section.append(f"✅ Available – {btn_text}")
+                        elif "sold" in btn_text.lower():
+                            section.append(f"❌ Sold Out – {btn_text}")
+                        else:
+                            section.append(f"⚠️ Unknown – {btn_text}")
+                        found = True
+                        break
+                except Exception:
+                    continue
+
+            if not found:
+                section.append("❌ Ticket not found on page")
+            break  # Break if no timeout error occurred
+
+        except TimeoutException:
+            if attempt == 0:
+                section.append("⚠️ Timeout – Retrying once...")
                 continue
-
-        if not found:
-            section.append("❌ Ticket not found on page")
-
-    except Exception as e:
-        section.append(f"❌ Error loading page: {str(e)}")
+            else:
+                section.append("❌ Error loading page: Timeout")
+        except Exception as e:
+            section.append(f"❌ Error loading page: {str(e)}")
+            break
 
     return section
 
