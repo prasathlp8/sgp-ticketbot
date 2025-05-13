@@ -2,7 +2,6 @@ import time
 import os
 import requests
 import threading
-import chromedriver_autoinstaller
 from flask import Flask
 from datetime import datetime, timedelta
 import pytz
