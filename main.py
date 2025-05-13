@@ -157,6 +157,14 @@ def run_checker():
 def home():
     return "✅ Bot is running and checking tickets every hour (SGT)."
 
+@app.route("/run-now")
+def run_now():
+    try:
+        check_ticket_status()
+        return "✅ Manual ticket check completed and sent to Telegram."
+    except Exception as e:
+        return f"❌ Error: {e}"
+
 threading.Thread(target=run_checker, daemon=True).start()
 
 if TELEGRAM_TOKEN and CHAT_ID:
